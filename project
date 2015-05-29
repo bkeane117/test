@@ -1,0 +1,570 @@
+import UniversalLibrary as UL
+import numpy
+import serial
+import sys
+import glob
+import csv
+import time
+import smtplib
+import email.utils
+#---------------------------------------------------------------------------------
+def serial_ports():
+    """Lists serial ports
+
+    :raises EnvironmentError:
+        On unsupported or unknown platforms
+    :returns:
+        A list of available serial ports
+    """
+    if sys.platform.startswith('win'):
+        ports = ['COM' + str(i + 1) for i in range(10)]
+
+    elif sys.platform.startswith('linux') or sys.platform.startswith('cygwin'):
+        # this is to exclude your current terminal "/dev/tty"
+        ports = glob.glob('/dev/tty[A-Za-z]*')
+
+    elif sys.platform.startswith('darwin'):
+        ports = glob.glob('/dev/tty.*')
+
+    else:
+        raise EnvironmentError('Unsupported platform')
+
+    result = []
+    for port in ports:
+        try:
+            s = serial.Serial(port)
+            s.close()
+            result.append(port)
+        except (OSError, serial.SerialException):
+            pass
+    return result
+    
+#---------------------------------------------------------------------------------
+def write_line(variable1, portname): #adds the \r\n characters needed for serial communication to string 
+	portname.write(variable1 + "\r\n")
+	temp = 0
+	return temp
+#---------------------------------------------------------------------------------
+def Voltage_Function():# measures cell voltage
+	for i in range(4):
+		UL.cbAInScan(BoardNum, i, i, 1, Rate, UL.BIP5VOLTS, temp, Options)# measures voltage in A/D counts
+		#Data[i] = temp
+		Voltage[i] = ((temp/16777216.0)*10.0 - 5.0) #converts A/D counts to voltage
+		if (Voltage[i] <= Hard_Vol_Low) or (Voltage[i] >= Hard_Vol_High):# halts program in case where voltage in unsafe region
+			try:
+				write_line("PV" + "0", Pcom)
+			except:
+				pass
+			try:
+				write_line("idle", Lcom)
+			except:
+				pass
+			print Voltage
+			SERVER = 'smtp.gmail.com:587'
+			
+			FROM = "batterytest117@gmail.com"
+			TO = ["bkeane117@gmail.com", "rh.pbes@gmail.com"]
+			        
+			message = "\r\n".join([
+			"From: batterytest117@gmail.com",
+			"To: bkeane117@gmail.com",
+			"Subject: Cell voltages in unsafe region",
+			"mime-version: 1.0",
+			"Danger! One or more cell voltages have entered an unsafe region.  Power supply and load have been disabled and test has halted"
+			])
+			        
+			server = smtplib.SMTP(SERVER)
+			server.ehlo()
+			server.starttls()
+			server.login("batterytest117", "batterytester")
+			
+			server.sendmail(FROM, TO, message)
+			server.quit()
+			Pcom.close()
+			Lcom.close()
+			sys.exit("Voltage Outside Safe Operational Range")
+	print Voltage
+#---------------------------------------------------------------------------------
+def Temperature_Function(): # measures cell temperature
+    UL.cbTInScan(BoardNum, 4, 31, UL.CELSIUS, Temperature, Options)
+#---------------------------------------------------------------------------------
+def csv_adder(data, path): #writes input data to a unique csv file
+    with open(path, "ab") as csv_file:
+        wtr = csv.writer(csv_file, delimiter = ',')
+        wtr.writerow(data)
+#---------------------------------------------------------------------------------
+
+if __name__ == '__main__':
+    print(serial_ports()) # lists connected serial ports
+
+COM_List = serial_ports()
+try:
+	Pcom = serial.Serial(COM_List[0]) # power supply must be a lower com number then load
+except (OSError, serial.SerialException):
+	pass
+try:
+	Lcom = serial.Serial(COM_List[1])
+except (OSError, serial.SerialException):
+	pass
+	
+
+with open('Test_variables_template.csv') as csvfile: # extracts variable values from a csv file
+	reader = csv.DictReader(csvfile, dialect='excel')
+	for row in reader:
+		min_voltage = float(row['min_voltage'])
+		max_voltage = float(row['max_voltage'])
+		Hard_Vol_High = float(row['Hard_Vol_High'])
+		Hard_Vol_Low = float(row['Hard_Vol_Low'])
+		num_iterations = int(row['num_iterations'])
+		Cool_Down = bool(row['Cool_Down'])
+		max_temp = float(row['max_temp'])
+		CurrentRange = row['CurrentRange']
+		setCurrent = int(row['setCurrent'])
+		LoadNum = int(row['LoadNum'])
+		state = row['state'] #initial state of the system is always charge
+		battery_voltage = row['battery_voltage']
+		battery_current = row['battery_current']
+		hard_v_lim = row['hard_v_lim']
+		hard_c_lim = row['hard_c_lim']
+		Test_state = bool(row['Test_state'])
+		Cool_Voltage = float(row['Cool_Voltage'])
+		V_LowChan = int(row['V_LowChan'])
+		V_HighChan =int( row['V_HighChan'])
+		T_LowChan = int(row['T_LowChan'])
+		T_HighChan = int(row['T_HighChan'])
+		#BoardNum = row['BoardNum']
+		Skip = (row['Skip'])
+		if (row['Chan_Skip4']) == True:
+			Chan_Skip4 = 4
+		else:
+			Chan_Skip4 = -1
+		if (row['Chan_Skip5']) == True:
+			Chan_Skip5 = 5
+		else:
+			Chan_Skip5 = -1
+		if (row['Chan_Skip6']) == True:
+			Chan_Skip6 = 6
+		else:
+			Chan_Skip6 = -1
+		if (row['Chan_Skip7']) == True:
+			Chan_Skip7 = 7
+		else:
+			Chan_Skip7 = -1
+		if (row['Chan_Skip8']) == True:
+			Chan_Skip8 = 8
+		else:
+			Chan_Skip8 = -1
+		if (row['Chan_Skip9']) == True:
+			Chan_Skip9 = 9
+		else:
+			Chan_Skip9 = -1
+		if (row['Chan_Skip10']) == True:
+			Chan_Skip10 = 10
+		else:
+			Chan_Skip10 = -1
+		if (row['Chan_Skip11']) == True:
+			Chan_Skip11 = 11
+		else:
+			Chan_Skip11 = -1
+		if (row['Chan_Skip12']) == True:
+			Chan_Skip12 = 12
+		else:
+			Chan_Skip12 = -1
+		if (row['Chan_Skip13']) == True:
+			Chan_Skip13 = 13
+		else:
+			Chan_Skip13 = -1
+		if (row['Chan_Skip14']) == True:
+			Chan_Skip14 = 14
+		else:
+			Chan_Skip14 = -1
+		if (row['Chan_Skip15']) == True:
+			Chan_Skip15 = 15
+		else:
+			Chan_Skip15 = -1
+		if (row['Chan_Skip16']) == True:
+			Chan_Skip16 = 16
+		else:
+			Chan_Skip16 = -1
+		if (row['Chan_Skip17']) == True:
+			Chan_Skip17 = 17
+		else:
+			Chan_Skip17 = -1
+		if (row['Chan_Skip18']) == True:
+			Chan_Skip18 = 18
+		else:
+			Chan_Skip18 = -1
+		if (row['Chan_Skip19']) == True:
+			Chan_Skip19 = 19
+		else:
+			Chan_Skip19 = -1
+		if (row['Chan_Skip20']) == True:
+			Chan_Skip20 = 20
+		else:
+			Chan_Skip20 = -1
+		if (row['Chan_Skip21']) == True:
+			Chan_Skip21 = 21
+		else:
+			Chan_Skip21 = -1
+		if (row['Chan_Skip22']) == True:
+			Chan_Skip22 = 22
+		else:
+			Chan_Skip22 = -1
+		if (row['Chan_Skip23']) == True:
+			Chan_Skip23 = 23
+		else:
+			Chan_Skip23 = -1
+		if (row['Chan_Skip24']) == True:
+			Chan_Skip24 = 24
+		else:
+			Chan_Skip24 = -1
+		if (row['Chan_Skip25']) == True:
+			Chan_Skip25 = 25
+		else:
+			Chan_Skip25 = -1
+		if (row['Chan_Skip26']) == True:
+			Chan_Skip26 = 26
+		else:
+			Chan_Skip26 = -1
+		if (row['Chan_Skip27']) == True:
+			Chan_Skip27 = 27
+		else:
+			Chan_Skip27 = -1
+		if (row['Chan_Skip28']) == True:
+			Chan_Skip28 = 28
+		else:
+			Chan_Skip28 = -1		
+	'''
+	min_voltage = 2.8
+	max_voltage = 4.18
+	Hard_Vol_High = 4.19
+	Hard_Vol_Low = 2.75
+	num_iterations = 1
+	Cool_Down = True
+	max_temp = 25
+	CurrentRange = 20
+	setCurrent = 75
+	LoadNum = 1
+	state = 'Charge' #initial state of the system is always charge
+	battery_voltage = "15"
+	battery_current = "75"
+	hard_v_lim = "100"
+	hard_c_lim = "75"
+	Test_state = True
+	Cool_Voltage = 3.8
+	'''	
+'''V_LowChan = 0
+V_HighChan = 3
+T_LowChan = 4
+T_HighChan = 31 '''
+
+Count1 = (V_HighChan - V_LowChan) + 1 # total number of samples to collect, will be divided between channels (voltages)
+Count2 = (T_HighChan - T_LowChan) + 1 # total number of samples to collect, will be divided between channels (temperatures)
+Scale= UL.CELSIUS
+DataBuff = (T_HighChan - T_LowChan) + 1
+BoardNum = 0 #board number as described by instaCal
+count = 0 
+Rate = 15000
+Gain = UL.BIP5VOLTS
+temp = numpy.zeros((1,), dtype=numpy.int32) #empty arrays to hold data 
+Data = numpy.zeros((Count1,), dtype=numpy.int32)
+Temperature = numpy.zeros((Count2,), dtype=numpy.float32)
+Temperature_1 = numpy.zeros((Count2,), dtype=numpy.float32) # temperature filter perameters
+for i in Temperature_1: # sets initial temp values to room temperature
+	i = 20.0
+Temperature_2= numpy.zeros((Count2,), dtype=numpy.float32)
+for i in Temperature_2:
+	i = 20.0
+IIR = numpy.zeros((Count2,), dtype=numpy.float32)
+for i in IIR:
+	i = 20.0
+Voltage = numpy.zeros((Count1,), dtype=numpy.float32)
+export = numpy.zeros((32,), dtype=numpy.float32) # array to be exported
+Options = 0
+load = ""
+error_count = 0
+cool_state = ""
+V_Err_Ch = [0, 0, 0, 0]
+
+try: # puts the power supply into serial mode
+	write_line("SR", Pcom)
+	time.sleep(.5)
+	write_line("SR", Pcom)
+except:
+	pass
+
+if (CurrentRange == 20): # changes serial load communication based on CurrentRange
+	setCurrent = setCurrent / LoadNum
+	setCurrent = setCurrent / 20
+	setCurrent = setCurrent * 10
+	setCurrent = setCurrent - 0.012
+	setCurrent = setCurrent / 0.5337
+	setCurrent = str(setCurrent)
+	load = ("loadc" + setCurrent + "i20")
+    
+elif (CurrentRange == 200):
+	setCurrent = setCurrent / LoadNum
+	setCurrent = setCurrent / 200
+	setCurrent = setCurrent * 10
+	setCurrent = setCurrent - 0.012
+	setCurrent = setCurrent * 10 / 0.5337
+	setCurrent = str(setCurrent)
+	load = ("loadc" + setCurrent + "i200")
+    
+else:
+	setCurrent = setCurrent / LoadNum
+	setCurrent = setCurrent / 600
+	setCurrent = setCurrent * 10
+	setCurrent = setCurrent - 0.012
+	setCurrent = setCurrent * 30 / 0.5337
+	setCurrent = str(setCurrent)
+	load = ("loadc" + setCurrent + "i600")
+try:
+	write_line("PVL" + hard_v_lim, Pcom) # sets power suppl voltage and current limits
+except:
+	pass
+try:
+	write_line("PCL" + hard_c_lim, Pcom)
+	time.sleep(.1)
+	write_line("PCL" + hard_c_lim, Pcom)   
+except:
+	pass
+	
+date = time.strftime("%Y%m%d-%H%M%S")
+path = date + ".csv"
+Header =     ["ch0", "ch1", "ch2", "ch3","ch4", "ch5", "ch6", "ch7","ch8", "ch9", "ch10", "ch11", "ch12", "ch13", "ch14", "ch15","ch16", "ch17", "ch18", "ch19","ch20", "ch21", "ch22", "ch23", "ch24", "ch25", "ch26", "ch27","ch28", "ch29", "ch30", "ch31",]
+csv_adder(Header, path) #data storage file created
+print max_temp
+default = raw_input("Please hit enter to start program")
+while Test_state == True:
+	if state == 'Charge': # puts battery in charge mode
+		V_Err_Ch = [0, 0, 0, 0]
+		count += 1
+		error_count = 0 # three high voltages needed in order to switch state
+		try: # send serial commands to switch to charge mode
+			write_line("PV" + battery_voltage, Pcom)# sets battery voltage
+		except:
+			pass
+		try:
+			write_line("PC" + battery_current, Pcom) # sets battery current
+		except:
+			pass
+		try:
+			write_line("idle20i0", Lcom) # sets load parameters
+		except:
+			pass
+			
+		while (state == 'Charge'):
+			Voltage_Function()
+			Temperature_Function()
+			export = numpy.concatenate([Voltage, Temperature])
+			export = export.tolist()
+			csv_adder(export, path)
+			for i in range(Count1): # stays in charge mode until voltage overtakes voltage limit
+				if Voltage[i] > max_voltage:
+					V_Err_Ch[i] += 1
+				elif (Voltage[i] >= min_voltage) and (V_Err_Ch[1] > 0):
+					V_Err_Ch[i] -= 1
+			for i in V_Err_Ch:
+				if (i < 3): # if within accepted range, remain in charge mode
+					#remain in charge mode
+					state = 'Charge'
+				elif (i >= 3): # if voltage range exceeded, switch to discharge mode
+					#switch to discharge mode
+					state = 'Discharge'
+					print state
+					break
+				else:
+					print "Error: Process Aborted"
+					state = 'Abort'
+			chan_count = 4
+			for C in range(Count2): # checks if any temperature value exceeds temperature threshold
+				if (Skip == True) and ((chan_count == Chan_Skip4) or (chan_count == Chan_Skip5) or (chan_count == Chan_Skip6) or (chan_count == Chan_Skip7) or (chan_count == Chan_Skip8) or (chan_count == Chan_Skip9) or (chan_count == Chan_Skip10) or (chan_count == Chan_Skip11) or (chan_count == Chan_Skip12) or (chan_count == Chan_Skip13) or (chan_count == Chan_Skip14) or (chan_count == Chan_Skip15) or (chan_count == Chan_Skip16) or (chan_count == Chan_Skip17) or (chan_count == Chan_Skip18) or (chan_count == Chan_Skip19) or (chan_count == Chan_Skip20) or (chan_count == Chan_Skip21) or (chan_count == Chan_Skip22) or (chan_count == Chan_Skip23) or (chan_count == Chan_Skip24) or (chan_count == Chan_Skip25) or (chan_count == Chan_Skip26) or (chan_count == Chan_Skip27) or (chan_count == Chan_Skip28)):
+					chan_count += 1
+					continue
+				IIR[C] = IIR[C]*(4.0/10) + Temperature_2[C]*(2.0/10) + Temperature_1[C]*(2.0/10) + Temperature[C]*(2.0/10)
+				Temperature_2[C] = Temperature_1[C]
+				Temperature_1[C] = Temperature[C] 
+				chan_count += 1
+				if IIR[C] >= max_temp:
+					state = 'Abort'
+					print state
+					print "Maximum Temperature Exceeded.  Test aborted"
+		if (count / 2 >= num_iterations) and (state != 'Abort'):
+			state = 'Cooldown'
+			print state
+					
+	elif state == 'Discharge':
+		V_Err_Ch = [0, 0, 0, 0]
+		count += 1
+		error_count = 0 # three low voltages needed in order to switch state
+		try: # send serial commands to enter discharge mode
+			write_line("PV" + "0", Pcom)
+		except:
+			pass
+		try:
+			write_line(load, Lcom)
+		except:
+			pass
+		while (state == 'Discharge'):
+			Voltage_Function()
+			Temperature_Function()
+			export = numpy.concatenate([Voltage, Temperature])
+			export = export.tolist()
+			csv_adder(export, path)
+			for i in range(Count1): #stays in discharge mode until voltage lower than limit
+				if Voltage[i] < min_voltage:
+					V_Err_Ch[i] += 1
+				elif (Voltage[i] >= min_voltage) and (V_Err_Ch[1] > 0):
+					V_Err_Ch[i] -= 1
+			for i in V_Err_Ch:
+				if (i < 3): # if within accepted range, remain in charge mode
+					#remain in charge mode
+					state = 'Discharge'
+				elif (i >= 3): # if voltage range exceeded, switch to discharge mode
+					#switch to charge mode
+					state = 'Charge'
+					print state
+					break
+				else:
+					print "Error: Process Aborted"
+					state = 'Abort'
+			chan_count = 4
+			for C in range(Count2): # checks if any temperature value exceeds temperature threshold
+				if (Skip == True) and ((chan_count == Chan_Skip4) or (chan_count == Chan_Skip5) or (chan_count == Chan_Skip6) or (chan_count == Chan_Skip7) or (chan_count == Chan_Skip8) or (chan_count == Chan_Skip9) or (chan_count == Chan_Skip10) or (chan_count == Chan_Skip11) or (chan_count == Chan_Skip12) or (chan_count == Chan_Skip13) or (chan_count == Chan_Skip14) or (chan_count == Chan_Skip15) or (chan_count == Chan_Skip16) or (chan_count == Chan_Skip17) or (chan_count == Chan_Skip18) or (chan_count == Chan_Skip19) or (chan_count == Chan_Skip20) or (chan_count == Chan_Skip21) or (chan_count == Chan_Skip22) or (chan_count == Chan_Skip23) or (chan_count == Chan_Skip24) or (chan_count == Chan_Skip25) or (chan_count == Chan_Skip26) or (chan_count == Chan_Skip27) or (chan_count == Chan_Skip28)):
+					chan_count += 1
+					continue
+				IIR[C] = IIR[C]*(4.0/10) + Temperature_2[C]*(2.0/10) + Temperature_1[C]*(2.0/10) + Temperature[C]*(2.0/10)
+				Temperature_2[C] = Temperature_1[C]
+				Temperature_1[C] = Temperature[C] 
+				chan_count += 1
+				if IIR[C] >= max_temp:
+					state = 'Abort'
+					print state
+					print "Maximum Temperature Exceeded.  Test aborted"
+		if (count / 2 >= num_iterations) and (state != 'Abort'):
+			state = 'Cooldown'
+			print state		
+			
+	elif state == 'Abort': # turns off power supply and load 
+		try:
+			write_line("PV" + "0", Pcom)
+		except:
+			pass
+		try:
+			write_line("idle", Lcom)
+		except:
+			pass
+		Test_state = False
+		#sends email to inform tester of abort
+		SERVER = 'smtp.gmail.com:587'
+		        
+		FROM = "batterytest117@gmail.com"
+		TO = ["bkeane117@gmail.com"]
+		        
+		message = "\r\n".join([
+		"From: batterytest117@gmail.com",
+		"To: bkeane117@gmail.com",
+		"Subject: Test Aborted",
+		"mime-version: 1.0",
+		"GET YO ASS TO WORK!"
+		])
+		        
+		server = smtplib.SMTP(SERVER)
+		server.ehlo()
+		server.starttls()
+		server.login("batterytest117", "batterytester")
+		
+		server.sendmail(FROM, TO, message)
+		server.quit()
+		
+	elif state == 'Cooldown': # optionally returns batteries to optimal charge level
+		V_Err_Ch = [0, 0, 0, 0]
+		Test_state = False
+		if Cool_Down == True:
+			ave_voltage = numpy.mean(Voltage)
+			if ave_voltage > Cool_Voltage:
+				try: # discharge battery to cooldown levels
+					write_line("PV" + "0", Pcom)
+				except:
+					pass
+				try:
+						write_line(load, Lcom)
+				except:
+					pass
+				cool_state = 'Discharge'
+				
+				#send serial command for discharge
+			elif ave_voltage < Cool_Voltage: # charge battery to cooldown level
+				try:
+					write_line("PV" + battery_voltage, Pcom)
+				except:
+					pass
+				try:
+					write_line("idle", Lcom)
+				except:
+					pass
+				cool_state = 'Charge'
+				#send charge command
+			while Cool_Down == True:
+				Voltage_Function()
+				Temperature_Function()
+				export = numpy.concatenate([Voltage, Temperature])
+				export = export.tolist()
+				csv_adder(export, path)
+				if cool_state == 'Discharge':
+					for i in range(Count1):
+						if Voltage[i] < Cool_Voltage:
+							V_Err_Ch[i] += 1
+						elif (Voltage[i] >= Cool_Voltage) and (V_Err_Ch[1] > 0):
+							V_Err_Ch[i] -= 1
+					for i in V_Err_Ch:
+						if (i < 3):
+							Cool_Down = True
+						elif (i >= 3): 
+							Cool_Down = False
+							break
+						else:
+							print "Error: Process Aborted"
+							state = 'Abort'
+				elif cool_state == 'Charge':
+					for i in range(Count1):
+						if Voltage[i] > Cool_Voltage:
+							V_Err_Ch[i] += 1
+						elif (Voltage[i] <= Cool_Voltage) and (V_Err_Ch[1] > 0):
+							V_Err_Ch[i] -= 1
+					for i in V_Err_Ch:
+						if (i < 3): 
+							Cool_Down = True
+						elif (i >= 3):
+							Cool_Down = False
+							break
+				chan_count = 4
+				for C in range(Count2): # checks if any temperature value exceeds temperature threshold
+					if (Skip == True) and ((chan_count == Chan_Skip4) or (chan_count == Chan_Skip5) or (chan_count == Chan_Skip6) or (chan_count == Chan_Skip7) or (chan_count == Chan_Skip8) or (chan_count == Chan_Skip9) or (chan_count == Chan_Skip10) or (chan_count == Chan_Skip11) or (chan_count == Chan_Skip12) or (chan_count == Chan_Skip13) or (chan_count == Chan_Skip14) or (chan_count == Chan_Skip15) or (chan_count == Chan_Skip16) or (chan_count == Chan_Skip17) or (chan_count == Chan_Skip18) or (chan_count == Chan_Skip19) or (chan_count == Chan_Skip20) or (chan_count == Chan_Skip21) or (chan_count == Chan_Skip22) or (chan_count == Chan_Skip23) or (chan_count == Chan_Skip24) or (chan_count == Chan_Skip25) or (chan_count == Chan_Skip26) or (chan_count == Chan_Skip27) or (chan_count == Chan_Skip28)):
+						chan_count += 1
+						continue
+					IIR[C] = IIR[C]*(4.0/10) + Temperature_2[C]*(2.0/10) + Temperature_1[C]*(2.0/10) + Temperature[C]*(2.0/10)
+					Temperature_2[C] = Temperature_1[C]
+					Temperature_1[C] = Temperature[C] 
+					chan_count += 1
+					if IIR[C] >= max_temp:
+						Cool_Down = False
+						state = 'Abort'
+						print state
+						print "Maximum Temperature Exceeded.  Test aborted"
+	
+	else:
+		print "State Error: Invalid State"
+		Test_state = False
+					
+print "Exiting Test"
+try:
+	write_line("SL", Pcom)
+except:
+	pass
+Pcom.close()
+Lcom.close()
+
+
+	
